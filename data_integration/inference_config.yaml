@@ -1,0 +1,93 @@
+# 推理数据整合配置文件
+# Inference Data Integration Configuration
+
+# 输入配置
+input:
+  # 输入目录（扫描目录下所有匹配文件）
+  source_dir: "./raw_data/inference/"
+  # 文件匹配模式（支持 glob）
+  file_pattern: "*.csv"
+  # 或者指定单个文件（优先级高于 source_dir）
+  # single_file: "./raw_data/inference/example.csv"
+
+# 输出配置
+output:
+  dir: "./data/inference/"
+  # 文件名模板，{timestamp} 会被替换为时间戳
+  filename: "inference_analysis_{timestamp}.xlsx"
+
+# 自变量配置（分析维度）
+# 这些字段会作为透视表的行索引或列
+independent_variables:
+  # 作为行索引的字段
+  row_fields:
+    - field: "model_name"
+      alias: "Model"
+    - field: "decoder_system_name"
+      alias: "System"
+  
+  # 作为列的字段（通常是 time_limit 等）
+  column_fields:
+    - field: "decoder_time_limit(ms)"
+      alias: "Time Limit"
+
+# 因变量配置（要分析的吞吐量指标）
+dependent_variables:
+  # Decode 相关
+  - field: "decoder_throughput(token/s)"
+    alias: "Decode Total"
+    prefix: "Decode"
+  - field: "decoder_throughput_per_npu(token/s)"
+    alias: "Decode Per NPU"
+    prefix: "Decode"
+  
+  # Prefill 相关
+  - field: "prefill_throughput(token/s)"
+    alias: "Prefill Total"
+    prefix: "Prefill"
+  - field: "prefill_throughput_per_npu(token/s)"
+    alias: "Prefill Per NPU"
+    prefix: "Prefill"
+
+# 附加字段（保留在输出中，不参与透视）
+additional_fields:
+  - "decoder_num_npu"
+  - "decoder_dp"
+  - "decoder_tp"
+  - "decoder_pp"
+  - "decoder_ep"
+  - "decoder_microbatchsize"
+  - "decoder_flops_type"
+
+# 分析模式配置
+analysis:
+  # 输出模式: pivot（透视表）/ flat（扁平表）/ both（两者都输出）
+  mode: "pivot"
+  
+  # 排序配置
+  sort_by: "decoder_throughput_per_npu(token/s)"
+  sort_order: "descending"  # ascending / descending
+  
+  # 数值精度（小数位数）
+  decimal_places: 0
+  
+  # 派生行配置（单卡 vs 整机对比）
+  derived_rows:
+    enabled: true
+    # NPU 数量字段
+    npu_count_field: "decoder_num_npu"
+    # 整机吞吐字段
+    total_throughput_field: "decoder_throughput(token/s)"
+    # 单卡吞吐字段
+    per_npu_throughput_field: "decoder_throughput_per_npu(token/s)"
+
+# 过滤条件（可选）
+# 支持操作符: ==, !=, >, <, >=, <=, in, not_in
+filters: []
+  # 示例：
+  # - field: "model_name"
+  #   operator: "in"
+  #   values: ["deepseek-v3", "qwen3-32B"]
+  # - field: "decoder_num_npu"
+  #   operator: ">="
+  #   values: [8]

@@ -1,0 +1,99 @@
+# 训练数据整合配置文件
+# Training Data Integration Configuration
+
+# 输入配置
+input:
+  # 输入目录（扫描目录下所有匹配文件）
+  source_dir: "./raw_data/training/"
+  # 文件匹配模式（支持 glob）
+  file_pattern: "*.csv"
+  # 或者指定单个文件（优先级高于 source_dir）
+  # single_file: "./raw_data/training/example.csv"
+
+# 输出配置
+output:
+  dir: "./data/training/"
+  # 文件名模板，{timestamp} 会被替换为时间戳
+  filename: "training_analysis_{timestamp}.xlsx"
+
+# 自变量配置（分析维度）
+# 这些字段会作为透视表的行索引或列
+independent_variables:
+  # 作为行索引的字段
+  row_fields:
+    - field: "_source_file"
+      alias: "Source File"
+  
+  # 用于分组聚合的字段（可选）
+  group_fields: []
+
+# 因变量配置（要分析的性能指标）
+dependent_variables:
+  # 主要性能指标
+  - field: "throughput_per_proc"
+    alias: "Throughput/Proc"
+  - field: "sample_rate"
+    alias: "Sample Rate"
+  - field: "total_efficiency"
+    alias: "Total Efficiency"
+  
+  # 时间分解
+  - field: "fw_time"
+    alias: "Forward Time"
+  - field: "bw_time"
+    alias: "Backward Time"
+  - field: "total_time"
+    alias: "Total Time"
+
+# 附加字段（保留在输出中）
+additional_fields:
+  # 配置信息
+  - "num_procs"
+  - "network0_size"
+  - "pipeline_par"
+  - "data_par"
+  - "expert_par"
+  - "tensor_par"
+  
+  # 时间分解详情
+  - "matrix_layers_time"
+  - "vector_layers_time"
+  - "optim_step_time"
+  - "recompute_time"
+  - "bubble_time"
+  
+  # 通信时间
+  - "tp_comm_link_time"
+  - "ep_comm_link_time"
+  - "pp_comm_link_time"
+  - "dp_comm_link_time"
+  - "ep_comm_exposed_time"
+  - "pp_comm_exposed_time"
+  - "dp_comm_exposed_time"
+
+# 分析模式配置
+analysis:
+  # 输出模式: flat（扁平表，适合训练数据）/ pivot / both
+  mode: "flat"
+  
+  # 排序配置
+  sort_by: "throughput_per_proc"
+  sort_order: "descending"  # ascending / descending
+  
+  # 数值精度（小数位数）
+  decimal_places: 4
+  
+  # 取每个文件的第几行（训练数据通常只取第一行最优结果）
+  # 设为 null 或 0 表示取所有行
+  top_n_per_file: 1
+
+# 过滤条件（可选）
+# 支持操作符: ==, !=, >, <, >=, <=, in, not_in
+filters: []
+  # 示例：
+  # - field: "num_procs"
+  #   operator: ">="
+  #   values: [1920]
+  # - field: "total_efficiency"
+  #   operator: ">"
+  #   values: [0.3]

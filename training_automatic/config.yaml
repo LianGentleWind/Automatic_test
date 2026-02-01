@@ -1,0 +1,29 @@
+# 基础路径配置
+paths:
+  base_model: "./test/260129sow/models/deepseekv3-671B.json"
+  base_runtime: "./automatic/base/runtime-S3-16K-2048P.json"
+  base_system: "./automatic/base/SOW-S3-POR.json"
+  output_root: "./automatic/output"
+  system_gen_dir: "./automatic/generated"
+  commands_file: "./automatic/run_simulations.sh"
+
+# 测试参数配置
+test_setting:
+  # 对应 JSON 中的嵌套路径
+  param_path: ["mem1", "GiB"]
+  param_name: "mem1"
+  # 模式: range (start, stop, step) 或 linspace (start, stop, num)
+  mode: "range"
+  start: 48
+  stop: 128
+  step: 1
+  num: 10
+
+# 分析配置
+analysis:
+  target_columns: 
+    - "total_time"
+    - "compute_efficiency"
+    - "samples_per_sec"
+    - "memory_usage_pct"
+  summary_file: "summary_report.csv"

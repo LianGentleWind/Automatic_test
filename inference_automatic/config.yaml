@@ -1,0 +1,48 @@
+# 自动化推理参数扫描与分析系统配置文件
+
+# 基础路径配置
+paths:
+  # 基础 runtime 配置文件路径
+  base_runtime_config: "./automatic/base/runtime_S3_8K_automatic_256P.json"
+  # 基础系统配置文件路径
+  base_sys_config: "./configs/260126SOW/npu/SOW_S3_POR.json"
+  # 输出根目录
+  output_root: "./automatic/test_results"
+  # 生成的系统配置文件目录
+  system_gen_dir: "./automatic/generated_configs"
+  # 生成的运行脚本路径
+  commands_file: "./automatic/run_simulations.sh"
+
+# 测试参数配置
+test_setting:
+  # 要测试的参数路径（JSON 嵌套路径）
+  # 如 ["mem1", "GiB"] 对应 JSON 中的 mem1.GiB
+  param_path: ["mem1", "GiB"]
+  # 参数名称（用于文件命名）
+  param_name: "mem1_GiB"
+  
+  # 生成模式: range（等差数列）、power_of_2（2的幂次）、linspace（等分）
+  mode: "range"
+  
+  # range 模式参数
+  start: 1
+  stop: 256
+  step: 1
+  
+  # power_of_2 模式参数
+  start_power: 0
+  end_power: 10
+  
+  # linspace 模式参数
+  num: 10
+
+# 分析配置
+analysis:
+  # 结果目录（扫描此目录下的所有 CSV 文件）
+  results_dir: "./automatic/test_results"
+  # 汇总分析输出文件
+  output_file: "./automatic/analysis_summary.csv"
+  # 需要提取的关键字段列表
+  target_columns:
+    - "decoder_throughput(token/s)"
+    - "decoder_throughput_per_npu(token/s)"
