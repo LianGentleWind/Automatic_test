@@ -1,0 +1,2 @@
+- [x] d:\Code\Automatic_test\data_integration\训练数据整合.py:64: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+  row_data[field] = pd.to_numeric(val, errors='ignore')

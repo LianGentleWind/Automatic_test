@@ -61,7 +61,10 @@ def main():
                 if field in df.columns:
                     val = first_row[field]
                     # 尝试转为数值，无法转换则保留原样
-                    row_data[field] = pd.to_numeric(val, errors='ignore')
+                    try:
+                        row_data[field] = pd.to_numeric(val)
+                    except (ValueError, TypeError):
+                        row_data[field] = val
                 else:
                     row_data[field] = None # 字段不存在则填空
 

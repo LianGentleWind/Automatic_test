@@ -74,7 +74,7 @@ def ensure_dir(path: str) -> None:
 
 def find_files(source_dir: str, pattern: str) -> list:
     """
-    查找匹配的文件
+    递归查找匹配的文件（包含所有子目录）
     
     Args:
         source_dir: 源目录
@@ -83,8 +83,9 @@ def find_files(source_dir: str, pattern: str) -> list:
     Returns:
         匹配的文件路径列表
     """
-    search_pattern = os.path.join(source_dir, pattern)
-    return glob(search_pattern)
+    # 默认递归扫描所有子目录
+    search_pattern = os.path.join(source_dir, '**', pattern)
+    return glob(search_pattern, recursive=True)
 
 
 def apply_filters(df: pd.DataFrame, filters: list) -> pd.DataFrame:

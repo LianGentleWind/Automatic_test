@@ -15,6 +15,8 @@ output:
   dir: "./data/inference/"
   # 文件名模板，{timestamp} 会被替换为时间戳
   filename: "inference_analysis_{timestamp}.xlsx"
+  # 按卡数拆分输出（生成 单卡/多卡/全量 三个文件）
+  split_by_npu: true
 
 # 自变量配置（分析维度）
 # 这些字段会作为透视表的行索引或列
@@ -25,11 +27,14 @@ independent_variables:
       alias: "Model"
     - field: "decoder_system_name"
       alias: "System"
+    - field: "seq_size"
+      alias: "Input Length"
   
   # 作为列的字段（通常是 time_limit 等）
   column_fields:
     - field: "decoder_time_limit(ms)"
       alias: "Time Limit"
+
 
 # 因变量配置（要分析的吞吐量指标）
 dependent_variables:
@@ -49,7 +54,7 @@ dependent_variables:
     alias: "Prefill Per NPU"
     prefix: "Prefill"
 
-# 附加字段（保留在输出中，不参与透视）
+# 附加字段（保留在flat输出中，不参与透视）
 additional_fields:
   - "decoder_num_npu"
   - "decoder_dp"
@@ -61,15 +66,28 @@ additional_fields:
 
 # 分析模式配置
 analysis:
-  # 输出模式: pivot（透视表）/ flat（扁平表）/ both（两者都输出）
-  mode: "pivot"
+  # 输出模式: pivot（透视表）/ spilit_pivot/ flat（扁平表）/ both（两者都输出）
+  mode: "split_pivot"
   
+  # 【新增】归一化基准系统名称（对应 csv 中的 decoder_system_name 原始值）
+  normalization_baseline: "rubin_ultra"
+
   # 排序配置
   sort_by: "decoder_throughput_per_npu(token/s)"
   sort_order: "descending"  # ascending / descending
   
+  # 指标列排序：Prefill 在 Decode 之前
+  metric_order: ["Prefill", "Decode"]
+  
+  # System 行排序：归一化基准优先，POR 在 LEG 之前
+  # 使用 contains 匹配：名字包含 "POR" 或 "LEG"
+  system_order:
+    - "rubin_ultra"   # 归一化基准排最前
+    - "*POR*"         # 名字包含 POR 的系统
+    - "*LEG*"         # 名字包含 LEG 的系统
+  
   # 数值精度（小数位数）
-  decimal_places: 0
+  decimal_places: 2
   
   # 派生行配置（单卡 vs 整机对比）
   derived_rows:
