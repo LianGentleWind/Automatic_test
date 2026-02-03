@@ -15,8 +15,6 @@ output:
   dir: "./data/inference/"
   # 文件名模板，{timestamp} 会被替换为时间戳
   filename: "inference_analysis_{timestamp}.xlsx"
-  # 按卡数拆分输出（生成 单卡/多卡/全量 三个文件）
-  split_by_npu: true
 
 # 自变量配置（分析维度）
 # 这些字段会作为透视表的行索引或列
@@ -64,17 +62,10 @@ additional_fields:
   - "decoder_microbatchsize"
   - "decoder_flops_type"
 
-# 分析模式配置
+# 分析配置
 analysis:
-  # 输出模式: pivot（透视表）/ spilit_pivot/ flat（扁平表）/ both（两者都输出）
-  mode: "split_pivot"
-  
-  # 【新增】归一化基准系统名称（对应 csv 中的 decoder_system_name 原始值）
+  # 归一化基准系统名称（对应 csv 中的 decoder_system_name 原始值）
   normalization_baseline: "rubin_ultra"
-
-  # 排序配置
-  sort_by: "decoder_throughput_per_npu(token/s)"
-  sort_order: "descending"  # ascending / descending
   
   # 指标列排序：Prefill 在 Decode 之前
   metric_order: ["Prefill", "Decode"]

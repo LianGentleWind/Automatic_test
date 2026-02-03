@@ -260,7 +260,7 @@ class InferenceDataIntegration:
             
             if not baseline_df.empty:
                 for col in data_cols:
-                    norm_col_name = f"{col}"
+                    norm_col_name = f"{col}_norm"
                     temp_baseline = baseline_df[match_cols + [col]].rename(columns={col: '_base_val'})
                     # 通过 match_cols (Model, Input Length, _row_type) 关联
                     merged = pd.merge(result[match_cols], temp_baseline, on=match_cols, how='left')
@@ -312,7 +312,16 @@ class InferenceDataIntegration:
                 return len(system_order)  # 未匹配的排最后
             
             result['_system_sort'] = result[system_field].apply(get_system_sort_key)
-            sort_keys = ['_system_sort'] + row_fields + (['_sort_order'] if '_sort_order' in result.columns else [])
+            # 排序优先级：Model → System (按 system_order) → 剩余 row_fields → Metric
+            # 找到 system_field 在 row_fields 中的位置，将 _system_sort 插入其后
+            if system_field in row_fields:
+                sys_idx = row_fields.index(system_field)
+                # row_fields[:sys_idx] 包含 system 之前的字段（如 model_name）
+                # _system_sort 替代 system_field 的排序位置
+                # row_fields[sys_idx+1:] 包含 system 之后的字段（如 seq_size）
+                sort_keys = row_fields[:sys_idx] + ['_system_sort'] + row_fields[sys_idx+1:] + (['_sort_order'] if '_sort_order' in result.columns else [])
+            else:
+                sort_keys = ['_system_sort'] + row_fields + (['_sort_order'] if '_sort_order' in result.columns else [])
             result = result.sort_values(by=sort_keys, ascending=True)
             result = result.drop(columns=['_system_sort'])
         else:
@@ -448,6 +457,7 @@ class InferenceDataIntegration:
     def run(self) -> Tuple[str, ...]:
         """
         执行完整处理流程
+        固定输出：flat 扁平表 + split_pivot 分 Sheet 透视表
         """
         print("=" * 50)
         print("推理数据整合处理开始")
@@ -457,64 +467,34 @@ class InferenceDataIntegration:
         self.load_data()
         self.preprocess()
         
-        # 2. 获取配置
-        analysis_config = self.config.get('analysis', {})
-        analysis_mode = analysis_config.get('mode', 'pivot')
         iv_config = self.config.get('independent_variables', {})
-        output_config = self.config.get('output', {})
-        split_by_npu = output_config.get('split_by_npu', False)
-        
         output_files = []
         
-        # 3. 处理透视表
-        if analysis_mode in ('pivot', 'both', 'split_pivot'):
-            print("  构建透视表...")
-            pivot_df = self.build_pivot_table() # 包含之前修复的所有逻辑
+        # 2. 构建并导出扁平表
+        print("  构建扁平表...")
+        flat_df = self.build_flat_table()
+        output_files.append(self.export(flat_df, 'flat'))
+        
+        # 3. 构建并导出分 Sheet 透视表
+        print("  构建透视表...")
+        pivot_df = self.build_pivot_table()
+        
+        # 确定拆分字段（row_fields 中的最后一个字段）
+        row_fields_cfg = iv_config.get('row_fields', [])
+        if row_fields_cfg:
+            last_cfg = row_fields_cfg[-1]
+            split_field_name = last_cfg.get('alias', last_cfg.get('field'))
             
-            # 按卡数拆分输出
-            if split_by_npu and 'Metric' in pivot_df.columns:
-                print("  按卡数拆分输出...")
-                # 单卡数据
-                single_mask = pivot_df['Metric'] == '单卡'
-                if single_mask.any():
-                    single_df = pivot_df[single_mask].copy()
-                    output_files.append(self.export(single_df, '单卡'))
-                
-                # 多卡数据（非单卡行）
-                multi_mask = ~single_mask
-                if multi_mask.any():
-                    multi_df = pivot_df[multi_mask].copy()
-                    output_files.append(self.export(multi_df, '多卡'))
-                
-                # 全量数据
-                output_files.append(self.export(pivot_df, '全量'))
-            elif analysis_mode == 'split_pivot':
-                # 确定配置文件 row_fields 中定义的最后一个字段的 Alias
-                row_fields_cfg = iv_config.get('row_fields', [])
-                if row_fields_cfg:
-                    last_cfg = row_fields_cfg[-1]
-                    # 优先使用 alias，如果没有则使用 field
-                    split_field_name = last_cfg.get('alias', last_cfg.get('field'))
-                    
-                    if split_field_name in pivot_df.columns:
-                        path = self.export_split_sheets(pivot_df, split_field_name, 'split')
-                        output_files.append(path)
-                    else:
-                        print(f"警告: 结果中未找到拆分字段 '{split_field_name}'，执行标准导出")
-                        output_files.append(self.export(pivot_df, 'pivot'))
-                else:
-                    output_files.append(self.export(pivot_df, 'pivot'))
+            if split_field_name in pivot_df.columns:
+                path = self.export_split_sheets(pivot_df, split_field_name, 'pivot')
+                output_files.append(path)
             else:
-                # 标准导出
-                output_files.append(self.export(pivot_df, 'pivot' if analysis_mode == 'both' else ''))
+                print(f"警告: 未找到拆分字段 '{split_field_name}'，使用单 Sheet 导出")
+                output_files.append(self.export(pivot_df, 'pivot'))
+        else:
+            output_files.append(self.export(pivot_df, 'pivot'))
         
-        # 4. 处理扁平表
-        if analysis_mode in ('flat', 'both'):
-            print("  构建扁平表...")
-            flat_df = self.build_flat_table()
-            output_files.append(self.export(flat_df, 'flat' if analysis_mode == 'both' else ''))
-        
-        print("\n[4/4] 处理完成!")
+        print("\n处理完成!")
         print("=" * 50)
         return tuple(output_files)
 
