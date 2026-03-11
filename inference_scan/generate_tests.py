@@ -14,7 +14,7 @@ from pathlib import Path
 from common import (
     load_yaml_config, generate_param_name_from_path, format_value_for_filename,
     parse_scan_params, generate_param_combinations, build_combo_dir_name,
-    build_combo_sys_name, build_combo_filename, is_sys_config_param,
+    build_combo_sys_name, build_combo_filename,
     CONFIG_YAML_PATH
 )
 
@@ -66,41 +66,65 @@ def get_test_values(param_mode):
     return formatted_values
 
 # ==================== 参数路径解析 ====================
+def _tokenize_param_path(param_path):
+    """
+    将参数路径字符串分词为 token 列表（字符串 key 或整数 index）
+    
+    Examples:
+        "mem1.GiB" -> ["mem1", "GiB"]
+        "networks[0].bandwidth" -> ["networks", 0, "bandwidth"]
+        "pd-split-request-optimal.sequence_length_list[0][0]"
+            -> ["pd-split-request-optimal", "sequence_length_list", 0, 0]
+    """
+    import re
+    tokens = []
+    parts = param_path.split('.')
+    for part in parts:
+        if '[' not in part:
+            tokens.append(part)
+        else:
+            # "sequence_length_list[0][0]" -> ["sequence_length_list", "0", "", "0", ""]
+            segments = re.split(r'[\[\]]', part)
+            for j, seg in enumerate(segments):
+                if seg == '':
+                    continue
+                if j == 0:
+                    tokens.append(seg)
+                else:
+                    tokens.append(int(seg))
+    return tokens
+
 def parse_param_path(config, param_path):
     """
-    解析参数路径，返回最后一级的key和父对象
+    解析参数路径，返回最后一级的 key/index 和父对象
+    支持多层数组索引，如 'sequence_length_list[0][0]'
     
     Args:
         config: 配置字典
-        param_path: 参数路径，如 'mem1.GiB' 或 'networks[0].bandwidth'
+        param_path: 参数路径，如 'mem1.GiB'、'networks[0].bandwidth'
+                    或 'pd-split-request-optimal.sequence_length_list[0][0]'
     
     Returns:
-        (last_key, parent_obj): 最后一级的key和父对象
+        (last_key, parent_obj): last_key 可能是字符串或整数（数组索引）
     """
-    parts = param_path.split('.')
+    tokens = _tokenize_param_path(param_path)
     current = config
     
-    for i, part in enumerate(parts[:-1]):
-        if '[' in part:
-            key, index_str = part.split('[')
-            index = int(index_str.rstrip(']'))
-            if key not in current:
-                raise KeyError(f"路径不存在: {'.'.join(parts[:i+1])}")
-            current = current[key][index]
-        else:
-            if part not in current:
-                raise KeyError(f"路径不存在: {'.'.join(parts[:i+1])}")
-            current = current[part]
+    for token in tokens[:-1]:
+        try:
+            current = current[token]
+        except (KeyError, IndexError, TypeError) as e:
+            raise KeyError(f"路径不存在: {param_path}, 在 token '{token}' 处失败: {e}")
     
-    return parts[-1], current
+    return tokens[-1], current
 
 def set_param_value(config, param_path, value):
-    """设置参数值"""
+    """设置参数值（支持字符串 key 和整数数组索引）"""
     last_key, parent = parse_param_path(config, param_path)
     
     # 处理包含 None 的列表（部分更新模式）
     if isinstance(value, list) and None in value:
-        current_val = parent.get(last_key)
+        current_val = parent[last_key]
         if isinstance(current_val, list) and len(current_val) == len(value):
             merged_value = []
             for new_v, old_v in zip(value, current_val):
@@ -141,14 +165,18 @@ def generate():
     print(f"扫描维度: {n_params}")
     print("=" * 50)
     
+    param_targets = []  # 'runtime' 或 'sys'
+    
     for i, sp in enumerate(scan_params):
         pp = sp['param_path']
         pm = sp.get('param_mode', {})
+        target = sp.get('target', 'runtime')  # 默认为 runtime
         pn = generate_param_name_from_path(pp)
         vals = get_test_values(pm)
         
         param_paths.append(pp)
         param_names.append(pn)
+        param_targets.append(target)
         all_values.append(vals)
         
         print(f"  参数 {i+1}: {pp} -> {pn} ({len(vals)} 个值)")
@@ -182,8 +210,8 @@ def generate():
     results_base_dir = os.path.join(output_dir, runtime_prefix)
     os.makedirs(results_base_dir, exist_ok=True)
     
-    # 判断每个参数是否属于系统配置
-    param_in_sys = [is_sys_config_param(pp) for pp in param_paths]
+    # 根据显式 target 字段判断参数归属
+    param_in_sys = [t == 'sys' for t in param_targets]
     any_sys_param = any(param_in_sys)
     
     commands = []
@@ -213,13 +241,13 @@ def generate():
             val = values_list[i]
             
             if param_in_sys[i]:
-                # 参数在系统配置中
+                # 参数在系统配置中（target: sys）
                 try:
                     set_param_value(new_sys_config, pp, val)
                 except (KeyError, TypeError, IndexError) as e:
                     print(f"  警告: 无法在系统配置中设置参数 {pp}: {e}")
             else:
-                # 参数在 runtime 配置中
+                # 参数在 runtime 配置中（target: runtime）
                 try:
                     set_param_value(new_runtime, pp, val)
                 except (KeyError, TypeError, IndexError) as e:

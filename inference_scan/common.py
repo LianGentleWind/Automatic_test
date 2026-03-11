@@ -321,16 +321,3 @@ def extract_param_values_from_combo_dir(dir_name, param_names):
                 result[param_name] = segment
     
     return result
-
-def is_sys_config_param(param_path):
-    """
-    判断参数是否属于系统配置（而非 runtime 配置）
-    
-    Args:
-        param_path: 参数路径字符串
-    
-    Returns:
-        bool
-    """
-    sys_prefixes = ('sys_list', 'networks', 'mem', 'matrix', 'vector')
-    return param_path.startswith(sys_prefixes)

@@ -3,35 +3,39 @@
 # 参数扫描配置
 scan:
   # 基础runtime配置文件路径
-  base_runtime_config: "./automatic/base/runtime_S3_8K_automatic_256P.json"
+  base_runtime_config: "./automatic/base/runtime_miniwse.json"
   # 基础系统配置文件路径（如果param_path指向系统配置中的参数）
-  base_sys_config: "./configs/260126SOW/npu/SOW_S3_POR.json"
+  base_sys_config: "./automatic/base/miniwse.json"
   
   # 参数列表：支持 1~N 个可变参数（当前实现 1~2 个，3+ 预留接口）
   # 多个参数时会进行排列组合（笛卡尔积）生成所有配置
   scan_params:
-    - param_path: "mem1.GiB"
+    - param_path: "pd-split-request-optimal.sequence_length_list[0][0]"
+      # 参数目标配置文件：runtime（运行时配置）或 sys（硬件系统配置）
+      target: runtime
       # 参数生成模式配置
       param_mode:
         # 格式类型：single（单个数值）、pair（相同值数组如[1,1]）或 pair_null_first（[null, v] 仅修改第二个值）
         format: single
         # 数值类型：arithmetic（等差数列）或 power_of_2（2的幂次）
-        value_type: arithmetic
-        # arithmetic 模式参数
-        start: 1
-        end: 256
-        step: 1
-        # power_of_2 模式参数
-        start_power: 0
-        end_power: 10
+        value_type: power_of_2
+        # power_of_2 模式参数：2^10=1K 到 2^20=1M
+        start_power: 10
+        end_power: 20
+        # arithmetic 模式参数（当 value_type 为 arithmetic 时使用）
+        # start: 1024
+        # end: 1048576
+        # step: 1024
     
     # 可选的第二个扫描参数（取消注释即可启用两参数扫描）
-    # - param_path: "networks[0].bandwidth"
-    #   param_mode:
-    #     format: single
-    #     value_type: power_of_2
-    #     start_power: 0
-    #     end_power: 10
+    - param_path: "mem1.GiB"
+      target: sys
+      param_mode:
+        format: single
+        value_type: arithmetic
+        start: 64
+        end: 256
+        step: 64
   
   # 输出目录
   output_dir: "./automatic/test_results"
