@@ -312,21 +312,21 @@ class InferenceDataIntegration:
                 return len(system_order)  # 未匹配的排最后
             
             result['_system_sort'] = result[system_field].apply(get_system_sort_key)
-            # 排序优先级：Model → System (按 system_order) → 剩余 row_fields → Metric
+            # 排序优先级：Metric(多卡/单卡) → Model → System (按 system_order) → 剩余 row_fields
             # 找到 system_field 在 row_fields 中的位置，将 _system_sort 插入其后
             if system_field in row_fields:
                 sys_idx = row_fields.index(system_field)
                 # row_fields[:sys_idx] 包含 system 之前的字段（如 model_name）
                 # _system_sort 替代 system_field 的排序位置
                 # row_fields[sys_idx+1:] 包含 system 之后的字段（如 seq_size）
-                sort_keys = row_fields[:sys_idx] + ['_system_sort'] + row_fields[sys_idx+1:] + (['_sort_order'] if '_sort_order' in result.columns else [])
+                sort_keys = (['_sort_order'] if '_sort_order' in result.columns else []) + row_fields[:sys_idx] + ['_system_sort'] + row_fields[sys_idx+1:]
             else:
-                sort_keys = ['_system_sort'] + row_fields + (['_sort_order'] if '_sort_order' in result.columns else [])
+                sort_keys = (['_sort_order'] if '_sort_order' in result.columns else []) + ['_system_sort'] + row_fields
             result = result.sort_values(by=sort_keys, ascending=True)
             result = result.drop(columns=['_system_sort'])
         else:
             # 默认排序
-            sort_keys = row_fields + (['_sort_order'] if '_sort_order' in result.columns else [])
+            sort_keys = (['_sort_order'] if '_sort_order' in result.columns else []) + row_fields
             result = result.sort_values(by=sort_keys, ascending=True)
         
         # 8. 清理内部辅助列
