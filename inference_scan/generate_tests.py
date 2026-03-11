@@ -37,7 +37,15 @@ def get_test_values(param_mode):
     value_type = param_mode.get('value_type', 'arithmetic')
     format_type = param_mode.get('format', 'single')
     
-    if value_type == 'arithmetic':
+    # 兼容用户自定义的 "手动" 模式
+    if format_type == '手动' or value_type == 'manual' or value_type == '手动' or 'values' in param_mode:
+        if 'values' not in param_mode:
+            raise ValueError("手动模式必须提供 'values' 列表")
+        raw_values = param_mode['values']
+        if format_type == '手动':
+            format_type = 'single'
+        print(f"    手动列表: {raw_values}")
+    elif value_type == 'arithmetic':
         start = param_mode.get('start', 1)
         end = param_mode.get('end', 10)
         step = param_mode.get('step', 1)

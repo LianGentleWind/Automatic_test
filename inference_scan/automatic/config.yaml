@@ -11,32 +11,44 @@ scan:
   # 多个参数时会进行排列组合（笛卡尔积）生成所有配置
   scan_params:
     - param_path: "pd-split-request-optimal.sequence_length_list[0][0]"
-      # 参数目标配置文件：runtime（运行时配置）或 sys（硬件系统配置）
+      # target 必填：明确指定该参数属于哪个配置文件
+      # runtime - 基础 runtime 配置 (base_runtime_config)
+      # sys     - 基础 硬件系统 配置 (base_sys_config)
       target: runtime
+      
       # 参数生成模式配置
       param_mode:
-        # 格式类型：single（单个数值）、pair（相同值数组如[1,1]）或 pair_null_first（[null, v] 仅修改第二个值）
+        # format 格式类型：
+        #   single          - 单个数值
+        #   pair            - 相同值数组（如 [1,1]）
+        #   pair_null_first - 仅修改第二个值（如 [null, v]）
+        #   手动/manual     - 直接使用 values 数组中定义的值进行测试
         format: single
-        # 数值类型：arithmetic（等差数列）或 power_of_2（2的幂次）
+        
+        # value_type 数值生成类型（当 format != 手动 时生效）：
+        #   arithmetic - 等差数列
+        #   power_of_2 - 2的幂次
         value_type: power_of_2
+        
         # power_of_2 模式参数：2^10=1K 到 2^20=1M
         start_power: 10
         end_power: 20
-        # arithmetic 模式参数（当 value_type 为 arithmetic 时使用）
+        
+        # arithmetic 模式参数示例
         # start: 1024
         # end: 1048576
         # step: 1024
-    
+        
+        # 手动 模式参数示例
+        # values: [1, 2, 3]
+
     # 可选的第二个扫描参数（取消注释即可启用两参数扫描）
     - param_path: "mem1.GiB"
       target: sys
       param_mode:
-        format: single
-        value_type: arithmetic
-        start: 64
-        end: 256
-        step: 64
-  
+        format: 手动
+        values: [1, 2, 3]
+
   # 输出目录
   output_dir: "./automatic/test_results"
   # 生成的配置文件保存目录
@@ -60,11 +72,33 @@ analyze:
     - "decoder_throughput(token/s)"
     - "decoder_throughput_per_npu(token/s)"
 
-# 可视化配置
-visualize:
-  # 输出目录
-  output_dir: "./automatic/plots"
-  # 图片格式（png, pdf, svg）
-  format: "png"
-  # DPI
-  dpi: 150
+# ===============================================
+# ===============================================
+# 
+# [target: sys] 
+# -----------------------------------------------
+# 内存参数
+# mem1.GiB            
+# mem1.GBps          
+# mem2.GiB 
+# mem2.GBps 
+#
+# 网络参数
+# networks[0].bandwidth  
+# networks[1].bandwidth  
+#
+# -----------------------------------------------
+# [target: runtime] 
+# -----------------------------------------------
+# 核心通信/并行参数
+# pd-split-request-optimal.sequence_length_list[0][0] : 输入序列长度
+# pd-split-request-optimal.sequence_length_list[0][1] : 输出序列长度
+# pd-split-request-optimal.num_procs_list[0]          : 总 NPU 处理器数量
+#
+# 并行策略配置 (DP/TP/PP/EP 等)
+# pd-split-request-optimal.p_parallel_config[0][0]: prefill 阶段并行度 0
+# pd-split-request-optimal.p_parallel_config[0][1]: prefill 阶段并行度 1
+# pd-split-request-optimal.p_parallel_config[0][2]: prefill 阶段并行度 2
+# pd-split-request-optimal.p_moe_parallel_config[0][0]: prefill MOE 并行度 0
+# pd-split-request-optimal.wac_bytes_list[0][0]: 权重激活显存占比等
+
