@@ -2,16 +2,20 @@
 # -*- coding: utf-8 -*-
 """
 共享工具模块
-提供配置加载、日志设置等通用功能
+提供配置加载、日志设置、多参数命名等通用功能
 """
 
 import os
 import yaml
 import logging
+from itertools import product
 
 # ==================== 配置 ====================
 # YAML配置文件路径（相对于运行目录）
 CONFIG_YAML_PATH = "./automatic/config.yaml"
+
+# 多参数目录/名称分隔符（双下划线）
+PARAM_SEPARATOR = "__"
 
 # ==================== 日志设置 ====================
 def setup_logging(log_file=None):
@@ -158,3 +162,175 @@ def parse_csv_value(value_str):
     
     # 保持原始字符串
     return value_str
+
+# ==================== 多参数扫描工具 ====================
+def parse_scan_params(scan_config):
+    """
+    统一解析扫描参数配置，兼容新旧两种格式
+    
+    新格式（scan_params 列表）:
+        scan_params:
+          - param_path: "mem1.GiB"
+            param_mode: {...}
+          - param_path: "networks[0].bandwidth"
+            param_mode: {...}
+    
+    旧格式（单一 param_path + param_mode）:
+        param_path: "mem1.GiB"
+        param_mode: {...}
+    
+    Args:
+        scan_config: scan 配置字典
+    
+    Returns:
+        list[dict]: 参数配置列表，每个元素包含 'param_path' 和 'param_mode'
+    """
+    # 新格式：scan_params 列表
+    if 'scan_params' in scan_config:
+        return scan_config['scan_params']
+    
+    # 旧格式：单一 param_path + param_mode，适配为列表
+    if 'param_path' in scan_config:
+        return [{
+            'param_path': scan_config['param_path'],
+            'param_mode': scan_config.get('param_mode', {})
+        }]
+    
+    raise ValueError("配置中未找到 scan_params 或 param_path")
+
+def get_scan_dimension(scan_config):
+    """
+    获取扫描维度数
+    
+    Args:
+        scan_config: scan 配置字典
+    
+    Returns:
+        int: 扫描参数个数（1, 2, ...）
+    """
+    return len(parse_scan_params(scan_config))
+
+def build_combo_dir_name(param_names, values):
+    """
+    生成组合参数的目录名
+    
+    单参数: config_mem1_GiB_50
+    双参数: config_mem1_GiB_50__networks_0_bandwidth_100
+    
+    Args:
+        param_names: 参数名称列表 ["mem1_GiB", "networks_0_bandwidth"]
+        values: 对应参数值列表 [50, 100]
+    
+    Returns:
+        str: 目录名
+    """
+    parts = []
+    for name, val in zip(param_names, values):
+        value_str = format_value_for_filename(val)
+        parts.append(f"{name}_{value_str}")
+    return "config_" + PARAM_SEPARATOR.join(parts)
+
+def build_combo_sys_name(original_name, param_names, values):
+    """
+    生成组合参数的系统名称
+    
+    单参数: SOW_S3_POR_mem1_GiB_50
+    双参数: SOW_S3_POR_mem1_GiB_50__networks_0_bandwidth_100
+    
+    Args:
+        original_name: 原始系统名称
+        param_names: 参数名称列表
+        values: 对应参数值列表
+    
+    Returns:
+        str: 系统名称
+    """
+    parts = []
+    for name, val in zip(param_names, values):
+        value_str = format_value_for_filename(val)
+        parts.append(f"{name}_{value_str}")
+    suffix = PARAM_SEPARATOR.join(parts)
+    return f"{original_name}_{suffix}"
+
+def build_combo_filename(prefix, param_names, values, ext=".json"):
+    """
+    生成组合参数的文件名
+    
+    Args:
+        prefix: 文件名前缀（如 "runtime", "sys"）
+        param_names: 参数名称列表
+        values: 对应参数值列表
+        ext: 文件扩展名
+    
+    Returns:
+        str: 文件名
+    """
+    parts = []
+    for name, val in zip(param_names, values):
+        value_str = format_value_for_filename(val)
+        parts.append(f"{name}_{value_str}")
+    suffix = PARAM_SEPARATOR.join(parts)
+    return f"{prefix}_{suffix}{ext}"
+
+def generate_param_combinations(all_param_values):
+    """
+    对多个参数的值列表做笛卡尔积
+    
+    Args:
+        all_param_values: 二维列表，如 [[1,2,3], [10,20]]
+    
+    Returns:
+        list[tuple]: 所有组合，如 [(1,10), (1,20), (2,10), ...]
+    """
+    return list(product(*all_param_values))
+
+def extract_param_values_from_combo_dir(dir_name, param_names):
+    """
+    从组合目录名中提取各参数的值
+    
+    Args:
+        dir_name: 目录名，如 "config_mem1_GiB_50__networks_0_bandwidth_100"
+        param_names: 参数名称列表 ["mem1_GiB", "networks_0_bandwidth"]
+    
+    Returns:
+        dict: {param_name: value_str}，如 {"mem1_GiB": "50", "networks_0_bandwidth": "100"}
+    """
+    result = {}
+    
+    # 去掉 "config_" 前缀
+    content = dir_name
+    if content.startswith("config_"):
+        content = content[len("config_"):]
+    
+    # 按 PARAM_SEPARATOR 分割各参数段
+    segments = content.split(PARAM_SEPARATOR)
+    
+    for i, param_name in enumerate(param_names):
+        if i < len(segments):
+            segment = segments[i]
+            param_parts = param_name.split('_')
+            param_len = len(param_parts)
+            
+            # 在 segment 中查找 param_name 前缀并提取后面的值
+            seg_parts = segment.split('_')
+            if len(seg_parts) > param_len and seg_parts[:param_len] == param_parts:
+                value_str = '_'.join(seg_parts[param_len:])
+                result[param_name] = value_str
+            else:
+                # 回退：segment 整体作为值（兼容简单情况）
+                result[param_name] = segment
+    
+    return result
+
+def is_sys_config_param(param_path):
+    """
+    判断参数是否属于系统配置（而非 runtime 配置）
+    
+    Args:
+        param_path: 参数路径字符串
+    
+    Returns:
+        bool
+    """
+    sys_prefixes = ('sys_list', 'networks', 'mem', 'matrix', 'vector')
+    return param_path.startswith(sys_prefixes)

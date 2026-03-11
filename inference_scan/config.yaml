@@ -6,25 +6,32 @@ scan:
   base_runtime_config: "./automatic/base/runtime_S3_8K_automatic_256P.json"
   # 基础系统配置文件路径（如果param_path指向系统配置中的参数）
   base_sys_config: "./configs/260126SOW/npu/SOW_S3_POR.json"
-  # 要测试的参数路径，支持：
-  # - 简单路径：如 "mem1.GiB"
-  # - 数组索引路径：如 "networks[0].bandwidth"
-  # 注意：此值同时用于扫描和分析，会自动转换为文件名格式（如 "mem1.GiB" -> "mem1_GiB"）
-  param_path: "mem1.GiB"
   
-  # 参数生成模式配置
-  param_mode:
-    # 格式类型：single（单个数值）、pair（相同值数组如[1,1]）或 pair_null_first（[null, v] 仅修改第二个值）
-    format: single
-    # 数值类型：arithmetic（等差数列）或 power_of_2（2的幂次）
-    value_type: arithmetic
-    # arithmetic 模式参数
-    start: 1
-    end: 256
-    step: 1
-    # power_of_2 模式参数
-    start_power: 0
-    end_power: 10
+  # 参数列表：支持 1~N 个可变参数（当前实现 1~2 个，3+ 预留接口）
+  # 多个参数时会进行排列组合（笛卡尔积）生成所有配置
+  scan_params:
+    - param_path: "mem1.GiB"
+      # 参数生成模式配置
+      param_mode:
+        # 格式类型：single（单个数值）、pair（相同值数组如[1,1]）或 pair_null_first（[null, v] 仅修改第二个值）
+        format: single
+        # 数值类型：arithmetic（等差数列）或 power_of_2（2的幂次）
+        value_type: arithmetic
+        # arithmetic 模式参数
+        start: 1
+        end: 256
+        step: 1
+        # power_of_2 模式参数
+        start_power: 0
+        end_power: 10
+    
+    # 可选的第二个扫描参数（取消注释即可启用两参数扫描）
+    # - param_path: "networks[0].bandwidth"
+    #   param_mode:
+    #     format: single
+    #     value_type: power_of_2
+    #     start_power: 0
+    #     end_power: 10
   
   # 输出目录
   output_dir: "./automatic/test_results"
@@ -48,3 +55,12 @@ analyze:
   key_fields:
     - "decoder_throughput(token/s)"
     - "decoder_throughput_per_npu(token/s)"
+
+# 可视化配置
+visualize:
+  # 输出目录
+  output_dir: "./automatic/plots"
+  # 图片格式（png, pdf, svg）
+  format: "png"
+  # DPI
+  dpi: 150
