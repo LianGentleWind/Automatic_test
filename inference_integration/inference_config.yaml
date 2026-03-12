@@ -52,7 +52,7 @@ dependent_variables:
     alias: "Prefill Per NPU"
     prefix: "Prefill"
 
-# 附加字段（保留在flat输出中，不参与透视）
+# 附加字段优先排序（flat输出会包含全部原始数据列，此处指定的字段排序靠前）
 additional_fields:
   - "decoder_num_npu"
   - "decoder_dp"

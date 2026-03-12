@@ -349,16 +349,29 @@ class InferenceDataIntegration:
         df = self.data.copy()
         iv_config = self.config.get('independent_variables', {})
         dependent_vars = self.config.get('dependent_variables', [])
-        # 获取配置中的额外字段列表
-        additional_fields = self.config.get('additional_fields', [])
+        # 获取配置中优先排序的额外字段列表
+        priority_additional_fields = self.config.get('additional_fields', [])
         
         # 1. 提取所有涉及的原始字段名
         row_fields = [f.get('field') for f in iv_config.get('row_fields', [])]
         col_fields = [f.get('field') for f in iv_config.get('column_fields', [])]
         dep_fields = [f.get('field') for f in dependent_vars]
         
-        # 按照：行字段 -> 列字段 -> 额外字段 -> 指标字段 的顺序组合
-        display_order = row_fields + col_fields + additional_fields + dep_fields
+        # 已知的核心字段（行字段、列字段、指标字段）
+        core_fields = set(row_fields + col_fields + dep_fields)
+        
+        # 构建完整的额外字段列表：优先字段在前，其余原始列在后
+        all_additional = []
+        for f in priority_additional_fields:
+            if f and f in df.columns and f not in core_fields and f not in all_additional:
+                all_additional.append(f)
+        # 追加剩余的所有原始数据列（排除核心字段、已添加的优先字段、内部辅助列）
+        for f in df.columns:
+            if f and f not in core_fields and f not in all_additional and not str(f).startswith('_'):
+                all_additional.append(f)
+        
+        # 按照：行字段 -> 列字段 -> 额外字段（优先+剩余） -> 指标字段 的顺序组合
+        display_order = row_fields + col_fields + all_additional + dep_fields
         
         # 过滤掉数据集中不存在的字段，并去重
         all_display_cols = []
