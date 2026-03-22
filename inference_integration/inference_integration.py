@@ -406,6 +406,61 @@ class InferenceDataIntegration:
         # 对于 additional_fields 中的字段，如果没有 alias 定义，将保留原始字段名
         return result.rename(columns=rename_map)
 
+    @staticmethod
+    def _apply_excel_formatting(writer, sheet_name: str, df: pd.DataFrame):
+        """
+        对指定 Sheet 应用 Calibri 12号字体、居中对齐格式
+        
+        Args:
+            writer: ExcelWriter 对象
+            sheet_name: Sheet 名称
+            df: 写入的 DataFrame
+        """
+        workbook = writer.book
+        worksheet = writer.sheets[sheet_name]
+        
+        # 定义单元格格式：Calibri 12号字体，水平和垂直居中
+        cell_format = workbook.add_format({
+            'font_name': 'Calibri',
+            'font_size': 12,
+            'align': 'center',
+            'valign': 'vcenter',
+        })
+        
+        # 定义表头格式：Calibri 12号字体，居中，加粗
+        header_format = workbook.add_format({
+            'font_name': 'Calibri',
+            'font_size': 12,
+            'align': 'center',
+            'valign': 'vcenter',
+            'bold': True,
+        })
+        
+        # 写入表头
+        for col_idx, col_name in enumerate(df.columns):
+            worksheet.write(0, col_idx, col_name, header_format)
+        
+        # 写入数据
+        for row_idx in range(len(df)):
+            for col_idx in range(len(df.columns)):
+                value = df.iloc[row_idx, col_idx]
+                # 处理 NaN 值
+                if pd.isna(value):
+                    worksheet.write_blank(row_idx + 1, col_idx, None, cell_format)
+                else:
+                    worksheet.write(row_idx + 1, col_idx, value, cell_format)
+        
+        # 自动调整列宽（基于内容长度）
+        for col_idx, col_name in enumerate(df.columns):
+            # 取表头和数据中最长的字符串长度
+            max_len = len(str(col_name))
+            for row_idx in range(len(df)):
+                val = df.iloc[row_idx, col_idx]
+                if pd.notna(val):
+                    max_len = max(max_len, len(str(val)))
+            # 设置列宽，加一点余量
+            worksheet.set_column(col_idx, col_idx, max_len + 2)
+
     def export(self, df: pd.DataFrame, suffix: str = "") -> str:
         """
         导出结果到 Excel
@@ -430,7 +485,10 @@ class InferenceDataIntegration:
         
         output_path = os.path.join(output_dir, filename)
         
-        df.to_excel(output_path, index=False)
+        with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name='Sheet1', index=False, header=False, startrow=1)
+            self._apply_excel_formatting(writer, 'Sheet1', df)
+        
         print(f"结果已导出: {output_path}")
         
         return output_path
@@ -462,7 +520,8 @@ class InferenceDataIntegration:
                 
                 # 写入 Sheet，名称为字段值（如 "4096", "8192" 等）
                 sheet_name = str(val)[:31]  # Excel Sheet 名称限制 31 字符
-                sheet_df.to_excel(writer, sheet_name=sheet_name, index=False)
+                sheet_df.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=1)
+                self._apply_excel_formatting(writer, sheet_name, sheet_df)
         
         print(f"结果已按 '{split_field}' 拆分并导出至: {output_path}")
         return output_path
